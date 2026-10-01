@@ -193,17 +193,10 @@ Checked on the live site on 2 October 2026:
 - Landing page with a narrow viewport (hamburger navigation and stacked sections)
 - Admin viewport guard on a phone-sized width
 
-Earlier local QA (same date, before this capture) checked demo isolation: session-only chat and journal, server demo chat limit, sign-up redirect, hidden delete account, and unchanged persistence for a normal client. Those local checks are not repeated as production screenshots.
+## 🤝 Let's Connect
 
-Not completed in this pass: Continue with Google through to a Firebase account, a non-demo booking form, and a fresh database console screenshot.
+Building infrastructure, automating deployments, or solving a cloud problem?
+Feel free to connect.
 
-## Limitations and future work
-
-- Use `https://www.sukoon.tech`. Apex `sukoon.tech` still answers from extra Google A records (`216.239.32.21`, `216.239.34.21`, `216.239.36.21`, `216.239.38.21`) as well as `44.218.253.204`. Remove the four Google A records at the registrar and keep `@` and `www` on the Elastic IP.
-- Add `sukoon.tech` and `www.sukoon.tech` to the Firebase authorized domains before relying on Continue with Google.
-- Approval and rejection write `email_events` rows with status `pending`. Mail is not sent. There is no SMTP or SES delivery.
-- Therapist document preview is still a stored path, not a file store.
-- Admin management is desktop-only.
-- Client Demo cannot book. A signed-in non-demo client is required for the scheduler.
-- The mistaken resources on AWS account `591292939267` are still present. They were inventoried and were not deleted.
-- AWS console shots of the deploy bucket, the EC2 instance, and its networking tab are in `hackathon-proof/screenshots/`. A Cursor-window screenshot and a PostgreSQL client screenshot are still **PENDING**. See `hackathon-proof/submission-checklist.md`.
+**LinkedIn:** [Syed Moiz](https://www.linkedin.com/in/symoiz/)
+**Email:** `symoiz.dev@gmail.com`
