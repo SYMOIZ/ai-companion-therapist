@@ -177,7 +177,6 @@ Client booking (`06-client-booking.png`): **PENDING**. Client Demo sends booking
 
 ![Account settings](docs/screenshots/17-profile-settings.png)
 
-![Mobile landing layout](docs/screenshots/18-responsive-mobile.png)
 
 Hackathon proof images, including the ones that are still pending, are listed in [hackathon-proof/README.md](hackathon-proof/README.md).
 
