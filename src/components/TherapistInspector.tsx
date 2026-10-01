@@ -7,7 +7,7 @@ interface TherapistInspectorProps {
   therapist: Therapist;
   onClose: () => void;
   onApprove?: (id: string) => void;
-  onReject?: (id: string) => void;
+  onReject?: (id: string, reason?: string) => void;
   isProcessing?: boolean;
 }
 
@@ -195,7 +195,7 @@ export const TherapistInspector: React.FC<TherapistInspectorProps> = ({ therapis
                                 onChange={e => setRejectReason(e.target.value)}
                                 autoFocus
                             />
-                            <button onClick={() => onReject(therapist.id)} className="px-4 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700">Confirm Reject</button>
+                            <button onClick={() => onReject(therapist.id, rejectReason)} className="px-4 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700">Confirm Reject</button>
                             <button onClick={() => setShowRejectInput(false)} className="px-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl">Cancel</button>
                         </div>
                     ) : (

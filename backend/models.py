@@ -333,6 +333,16 @@ class AdminAction(Base):
     details = Column(Text, default="{}")
     created_at = Column(String)
 
+class EmailEvent(Base):
+    __tablename__ = "email_events"
+    id = Column(String, primary_key=True)
+    to_email = Column(String, nullable=False)
+    subject = Column(String, nullable=False)
+    body = Column(Text)
+    event_type = Column(String, nullable=False)
+    status = Column(String, default="pending")
+    created_at = Column(String)
+
 class TherapistApplication(Base):
     __tablename__ = "therapist_applications"
     id = Column(String, primary_key=True)

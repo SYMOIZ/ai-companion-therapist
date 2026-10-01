@@ -27,7 +27,13 @@ function App() {
     const stored = localStorage.getItem('sukoon_current_user');
     if (stored) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (parsed?.darkMode) {
+          const light = { ...parsed, darkMode: false };
+          localStorage.setItem('sukoon_current_user', JSON.stringify(light));
+          return light;
+        }
+        return parsed;
       } catch (e) {
         console.error("Failed to parse stored user", e);
         return null;
@@ -71,15 +77,19 @@ function App() {
   };
 
   const handleLogin = (settings: UserSettings) => {
-      handleUpdateUser(settings);
-      if(settings.isAdmin) setActiveTab('admin-dashboard');
-      else if (settings.role === 'therapist') setActiveTab('therapist-overview');
+      const portalUser = { ...settings, darkMode: false };
+      handleUpdateUser(portalUser);
+      if(portalUser.isAdmin) setActiveTab('admin-dashboard');
+      else if (portalUser.role === 'therapist') setActiveTab('therapist-overview');
       else setActiveTab('dashboard');
   };
 
   const handleLogout = () => {
       localStorage.removeItem('sukoon_current_user');
       localStorage.removeItem('sukoon_auth_token');
+      sessionStorage.removeItem('sukoon_client_demo_session');
+      sessionStorage.removeItem('sukoon_client_demo_chat');
+      sessionStorage.removeItem('sukoon_client_demo_journal');
       setUser(null);
       setActiveTab('dashboard');
   };
@@ -90,7 +100,10 @@ function App() {
   if (window.location.pathname === '/crisis-support') return <CrisisPage />;
   if (window.location.pathname === '/about') return <AboutPage />;
   
-  if (!user) return <WelcomePage onComplete={handleLogin} />;
+  const therapistLocked = !!user && user.role === 'therapist' && !user.isAdmin && user.accountStatus !== 'active';
+  if (!user || therapistLocked) {
+    return <WelcomePage onComplete={handleLogin} initialView={therapistLocked ? 'therapist-pending' : undefined} />;
+  }
 
   return (
     <Layout 

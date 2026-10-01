@@ -1,5 +1,6 @@
 import React from 'react';
 import { UserSettings } from '../types';
+import { redirectClientDemoToSignup } from '../lib/clientDemo';
 import { MessageSquare, LayoutDashboard, Calendar, Search } from 'lucide-react';
 
 interface DashboardProps {
@@ -55,7 +56,7 @@ export const DashboardPage: React.FC<DashboardProps> = ({ settings, onNavigate }
                         <h2 className="text-xl font-bold">Try Sukoon Premium</h2>
                         <p className="text-white/80 mt-2 text-sm max-w-sm">Unlock advanced insights, memory context, and priority support for the best possible experience.</p>
                     </div>
-                    <button onClick={() => onNavigate('plans')} className="mt-4 md:mt-0 px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl text-sm hover:bg-slate-50 transition-colors shrink-0">
+                    <button onClick={() => { if (redirectClientDemoToSignup(settings)) return; onNavigate('plans'); }} className="mt-4 md:mt-0 px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl text-sm hover:bg-slate-50 transition-colors shrink-0">
                         View Plans
                     </button>
                 </div>

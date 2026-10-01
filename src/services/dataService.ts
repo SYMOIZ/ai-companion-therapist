@@ -456,7 +456,7 @@ export const approveTherapistApplication = async (appId: string) => {
     return await response.json();
 };
 
-export const rejectTherapistApplication = async (appId: string) => {
+export const rejectTherapistApplication = async (appId: string, reason?: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     
@@ -466,7 +466,7 @@ export const rejectTherapistApplication = async (appId: string) => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ appId })
+        body: JSON.stringify({ appId, reason: reason || '' })
     });
     if (!response.ok) throw new Error('Failed to reject application');
     clearTherapistsCache();
@@ -1482,6 +1482,7 @@ export const saveCheckInEvent = async (event: any) => {
 
 export const saveTherapistApplication = async (app: TherapistApplication) => {
     await supabase.from('therapist_applications').insert({
+        id: app.id,
         user_id: app.userId,
         full_name: app.fullName,
         email: app.email,

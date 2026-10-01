@@ -128,7 +128,7 @@ export const registerTherapist = async (data: RegisterTherapistData): Promise<{ 
             email: cleanEmail,
             password: data.password,
             options: { 
-                data: { name: data.fullName, role: 'therapist' },
+                data: { name: data.fullName, role: 'therapist', accountStatus: 'pending' },
                 captchaToken: data.captchaToken // Pass CAPTCHA
             }
         });
@@ -213,6 +213,9 @@ export const registerTherapist = async (data: RegisterTherapistData): Promise<{ 
             accountStatus: 'pending', // IMPORTANT: LOCKED STATE
             stats: { totalActiveDays: 0, lastActiveDate: '', badges: [] }
         };
+
+        localStorage.setItem('sukoon_current_user', JSON.stringify(therapistUser));
+        localStorage.setItem('sukoon_therapist_application_id', appId);
 
         return { user: therapistUser, applicationId: appId, error: null };
 
@@ -478,11 +481,11 @@ export const loginUser = async (email: string, password: string): Promise<{ user
             };
         }
 
-        // Check metadata for application status if they are a therapist
-        let accountStatus: 'active' | 'pending' | 'suspended' = 'active';
-        if (profile.metadata?.applicationStatus === 'pending') {
-            accountStatus = 'pending';
-        }
+        const dbStatus = profile.account_status || 'active';
+        const accountStatus: UserSettings['accountStatus'] =
+            dbStatus === 'active' || dbStatus === 'suspended' || dbStatus === 'pending' || dbStatus === 'banned'
+                ? dbStatus
+                : 'pending';
 
         return {
             user: {
@@ -515,8 +518,52 @@ export const loginUser = async (email: string, password: string): Promise<{ user
     }
 };
 
+export const loginDemo = async (role: 'client' | 'therapist' | 'admin'): Promise<{ user: UserSettings | null, error: string | null }> => {
+    try {
+        const { data, error } = await (supabase.auth as any).signInWithDemo(role);
+        if (error || !data?.user) {
+            return { user: null, error: error?.message || "Demo login failed." };
+        }
+        const profile = data.user;
+        const clientDemo = role === 'client';
+        if (clientDemo) {
+            const { startClientDemoSession } = await import('../lib/clientDemo');
+            startClientDemoSession();
+        }
+        return {
+            user: {
+                id: profile.id,
+                email: profile.email,
+                name: clientDemo ? 'Demo Account' : (profile.name || 'User'),
+                accountType: clientDemo ? 'client-demo' : undefined,
+                is_anonymous: !!profile.is_anonymous,
+                age: profile.age,
+                region: profile.region,
+                gender: profile.gender,
+                profession: profile.profession,
+                preferredLanguage: profile.preferredLanguage || 'English',
+                tonePreference: profile.tonePreference || 'Friendly',
+                voiceEnabled: !!profile.voiceEnabled,
+                autoPlayAudio: !!profile.autoPlayAudio,
+                memoryEnabled: profile.memoryEnabled !== undefined ? !!profile.memoryEnabled : true,
+                therapistStyle: profile.therapistStyle || 'gentle',
+                personalityMode: profile.personalityMode || 'introvert',
+                darkMode: false,
+                isAdmin: !!profile.isAdmin || profile.role === 'admin' || profile.role === 'staff',
+                role: profile.role === 'therapist' ? 'therapist' : profile.role === 'admin' ? 'admin' : 'patient',
+                accountStatus: profile.accountStatus || 'active',
+                stats: profile.stats || { totalActiveDays: 0, lastActiveDate: '', badges: INITIAL_BADGES }
+            },
+            error: null
+        };
+    } catch (e: any) {
+        return { user: null, error: e.message || "Demo login failed." };
+    }
+};
+
 export const updateUserProfile = async (user: UserSettings) => {
-    if (user.is_anonymous || user.id === 'admin') return;
+    const { isClientDemoAccount } = await import('../lib/clientDemo');
+    if (user.is_anonymous || user.id === 'admin' || isClientDemoAccount(user)) return;
     await supabase.from('users').upsert({
         id: user.id,
         email: user.email,

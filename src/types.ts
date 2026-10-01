@@ -41,6 +41,7 @@ export interface UserSettings {
     darkMode: boolean;
     isAdmin?: boolean;
     role: 'patient' | 'therapist' | 'admin' | 'staff';
+    accountType?: 'client-demo';
     accountStatus: 'active' | 'suspended' | 'pending' | 'banned';
     suspensionReason?: string;
     stats: UserStats;

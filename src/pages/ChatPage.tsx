@@ -18,8 +18,10 @@ import { trackUserActivity } from '../services/ragService';
 import { saveRating, saveBugReport, saveUserFeedback, triggerRiskAlert, checkPendingInterventions, scanForPII, suspendUser, getClientConnection, getDirectMessages, sendDirectMessage, getSessionBookings, decideFollowupRequest, purchasePaidChat } from '../services/dataService';
 import { chatPersistenceService } from '../services/chatPersistenceService';
 import { MOODS } from '../constants';
+import { isClientDemoAccount, readDemoChat, writeDemoChat, syncClientDemoUsage } from '../lib/clientDemo';
 import { TherapistConnection } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { redirectClientDemoToSignup } from '../lib/clientDemo';
 
 interface ChatPageProps {
   settings: UserSettings;
@@ -115,6 +117,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
 
   // Guest Logic
   const isGuest = settings.is_anonymous;
+  const isClientDemo = isClientDemoAccount(settings);
   const userMessageCount = messages.filter(m => m.role === MessageRole.USER).length;
   
   const [userAiCount, setUserAiCount] = useState<number>(0);
@@ -123,6 +126,13 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
   const [showPremiumActivated, setShowPremiumActivated] = useState(false);
 
   useEffect(() => {
+    if (isClientDemo) {
+      syncClientDemoUsage('status').then(usage => {
+        if (usage && typeof usage.count === 'number') setUserAiCount(usage.count);
+        if (usage && typeof usage.limit === 'number') setLimits({ name: 'Free', max_ai_chats: usage.limit });
+      }).catch(() => {});
+      return;
+    }
     if (!isGuest && settings.id) {
        const fetchLimitsAndStats = async () => {
            try {
@@ -175,7 +185,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
        const interval = setInterval(fetchLimitsAndStats, 8000);
        return () => clearInterval(interval);
     }
-  }, [settings.id, isGuest]);
+  }, [settings.id, isGuest, isClientDemo]);
 
   const DAILY_AI_LIMIT = limits ? limits.max_ai_chats : 10;
   const isLimitReached = isGuest ? (userMessageCount >= GUEST_LIMIT) : (userAiCount >= DAILY_AI_LIMIT);
@@ -225,7 +235,12 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
             // B. Recover or Create Session
             let activeSessionId = sessionId;
             
-            if (!settings.isAdmin && !isGuest) {
+            if (isClientDemo) {
+                const saved = readDemoChat();
+                activeSessionId = crypto.randomUUID();
+                setSessionId(activeSessionId);
+                if (saved.length > 0) setMessages(saved);
+            } else if (!settings.isAdmin && !isGuest) {
                 const lastSession = await withTimeout(
                     chatPersistenceService.getLastActiveSession(settings.id),
                     2500,
@@ -286,7 +301,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
                     const welcomeMsg: Message = { id: crypto.randomUUID(), role: MessageRole.MODEL, text: welcomeText, timestamp: Date.now() };
                     
                     // Persist welcome message if not admin/guest
-                    if (!settings.isAdmin && !isGuest && activeSessionId) {
+                    if (!settings.isAdmin && !isGuest && !isClientDemo && activeSessionId) {
                         withTimeout(chatPersistenceService.saveMessage(settings.id, activeSessionId, welcomeMsg), 2000, undefined)
                             .catch(err => console.error("Error saving welcome message:", err));
                     }
@@ -313,6 +328,10 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
         );
     }
   }, [settings.id, settings.name, settings.isAdmin, settings.accountStatus]);
+
+  useEffect(() => {
+    if (isClientDemo && messages.length > 0) writeDemoChat(messages);
+  }, [isClientDemo, messages]);
 
   // Fetch Direct Messages when Therapist Tab is active
   useEffect(() => {
@@ -433,7 +452,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
   const handleMoodSelect = async (m: typeof MOODS[0]) => {
     setSessionMood(m.id as Mood);
     
-    if (sessionId && !safeMode && !settings.isAdmin && !isGuest) {
+    if (sessionId && !safeMode && !settings.isAdmin && !isGuest && !isClientDemo) {
       try {
         await chatPersistenceService.updateSessionMood(sessionId, m.id);
       } catch(e) {
@@ -454,7 +473,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
 
     setMessages(prev => [...prev, userMsg, botMsg]);
 
-    if (!safeMode && !settings.isAdmin && !isGuest && sessionId) {
+    if (!safeMode && !settings.isAdmin && !isGuest && !isClientDemo && sessionId) {
       chatPersistenceService.saveMessage(settings.id, sessionId, userMsg);
       chatPersistenceService.saveMessage(settings.id, sessionId, botMsg);
     }
@@ -467,7 +486,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
 
     // --- ZERO TOLERANCE PII CHECK ---
     const piiCheck = scanForPII(inputText);
-    if (piiCheck.detected && !settings.isAdmin) {
+    if (piiCheck.detected && !settings.isAdmin && !isClientDemo) {
         const reason = `Zero-Tolerance Violation: Attempted to share ${piiCheck.type} (${piiCheck.match})`;
         await suspendUser(settings.id, reason);
         triggerRiskAlert({ type: 'Policy Violation', message: `User attempted to share contact info: "${inputText}"`, userId: settings.id, userName: settings.name, triggerKeyword: piiCheck.match, id: '', clientId: settings.id, clientName: settings.name, detectedAt: Date.now(), status: 'Active' });
@@ -480,7 +499,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
     const lowerInput = inputText.toLowerCase();
     const matchedKeyword = RISK_KEYWORDS_HIGH.find(k => lowerInput.includes(k));
     
-    if (matchedKeyword) {
+    if (matchedKeyword && !isClientDemo) {
         triggerRiskAlert({ type: 'High Risk', message: `User triggered safety protocol. Input: "${inputText}"`, triggerKeyword: matchedKeyword, userId: settings.id, userName: settings.name, id: '', clientId: settings.id, clientName: settings.name, detectedAt: Date.now(), status: 'Active' });
         setInputText('');
         setIsCrisis(true); 
@@ -488,7 +507,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
     }
 
     // Update Activity Streak
-    if (!safeMode) {
+    if (!safeMode && !isClientDemo) {
         const { updatedUser, newBadge: earnedBadge } = trackUserActivity(settings);
         const updatedTotal = updatedUser.stats?.totalActiveDays || 0;
         const currentTotal = settings.stats?.totalActiveDays || 0;
@@ -507,7 +526,11 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
     setIsTyping(true);
-    if (!isGuest) setUserAiCount(prev => prev + 1);
+    if (isClientDemo) {
+      const usage = await syncClientDemoUsage('consume');
+      setUserAiCount(usage.count || 0);
+      if (!usage.allowed) return;
+    } else if (!isGuest) setUserAiCount(prev => prev + 1);
 
     // Trigger Emergency Banner for HIGH & CRITICAL
     if (riskLevel === 'HIGH' || riskLevel === 'CRITICAL') {
@@ -515,7 +538,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
     }
 
     // 2. Persist User Message (Async)
-    if (!safeMode && !settings.isAdmin && !isGuest && sessionId) {
+    if (!safeMode && !settings.isAdmin && !isGuest && !isClientDemo && sessionId) {
         chatPersistenceService.saveMessage(settings.id, sessionId, userMsg);
     }
 
@@ -555,7 +578,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
         setMessages(prev => [...prev, botMsg]);
 
         // 5. Persist AI Message (Async)
-        if (!safeMode && !settings.isAdmin && !isGuest && sessionId) {
+        if (!safeMode && !settings.isAdmin && !isGuest && !isClientDemo && sessionId) {
             chatPersistenceService.saveMessage(settings.id, sessionId, botMsg);
         }
 
@@ -567,7 +590,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
                     setMessages(prev => prev.map(m => m.id === botMsg.id ? { ...m, audioBase64: audioData } : m));
                     
                     // Asynchronously update the saved message in persistence to include the audio
-                    if (!safeMode && !settings.isAdmin && !isGuest && sessionId) {
+                    if (!safeMode && !settings.isAdmin && !isGuest && !isClientDemo && sessionId) {
                         const updatedMsg = { ...botMsg, audioBase64: audioData };
                         chatPersistenceService.saveMessage(settings.id, sessionId, updatedMsg);
                     }
@@ -792,8 +815,8 @@ export const ChatPage: React.FC<ChatPageProps> = ({ settings, onUpdateUser, onSi
                                <button onClick={onSignUp} className="w-full py-3 bg-teal-500 text-white rounded-xl font-bold hover:bg-teal-600 transition-colors">Sign Up Now</button>
                           ) : (
                                <>
-                                   <button onClick={() => { if(onTabChange) onTabChange('plans') }} className="w-full py-3 bg-teal-500 text-white rounded-xl font-bold hover:bg-teal-600 transition-colors shadow-lg hover:shadow-xl hover:-translate-y-0.5">Upgrade Now</button>
-                                   <button onClick={() => { if(onTabChange) onTabChange('plans') }} className="w-full py-3 bg-slate-100 dark:bg-navy-700 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-navy-600 transition-colors">Explore Plans</button>
+                                   <button onClick={() => { if (redirectClientDemoToSignup(settings)) return; if(onTabChange) onTabChange('plans') }} className="w-full py-3 bg-teal-500 text-white rounded-xl font-bold hover:bg-teal-600 transition-colors shadow-lg hover:shadow-xl hover:-translate-y-0.5">Upgrade Now</button>
+                                   <button onClick={() => { if (redirectClientDemoToSignup(settings)) return; if(onTabChange) onTabChange('plans') }} className="w-full py-3 bg-slate-100 dark:bg-navy-700 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-navy-600 transition-colors">Explore Plans</button>
                                </>
                           )}
                       </div>

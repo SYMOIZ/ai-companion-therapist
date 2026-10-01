@@ -262,6 +262,7 @@ function mapBackendUserToFrontend(raw: any): any {
     isAdmin: isAdmin,
     role: raw.role || 'patient',
     accountStatus: accountStatus,
+    accountType: raw.accountType,
     stats: stats
   };
 }
@@ -285,6 +286,38 @@ const authClient = {
         body: JSON.stringify(credentials)
       });
       const result = await safeJson(response, '/api/auth/signup');
+      if (result.error) throw new Error(result.error.message);
+      const mappedUser = mapBackendUserToFrontend(result.data?.user);
+      if (result.data?.session?.access_token) {
+        localStorage.setItem('sukoon_auth_token', result.data.session.access_token);
+        localStorage.setItem('sukoon_current_user', JSON.stringify(mappedUser));
+      }
+      return {
+        data: {
+          user: mappedUser,
+          session: result.data?.session ? {
+            access_token: result.data.session.access_token,
+            refresh_token: '',
+            expires_in: 3600,
+            token_type: 'bearer' as "bearer",
+            user: mappedUser
+          } : null
+        },
+        error: null
+      };
+    } catch (error: any) {
+      return { data: { user: null, session: null }, error: { message: error.message } };
+    }
+  },
+
+  signInWithDemo: async (role: 'client' | 'therapist' | 'admin') => {
+    try {
+      const response = await fetch('/api/auth/demo-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role })
+      });
+      const result = await safeJson(response, '/api/auth/demo-login');
       if (result.error) throw new Error(result.error.message);
       const mappedUser = mapBackendUserToFrontend(result.data?.user);
       if (result.data?.session?.access_token) {
@@ -484,8 +517,8 @@ const storageClient = {
     remove: async (paths: string[]) => {
       return { data: null, error: null };
     },
-    createSignedUrl: async (path: string, expiresIn: number) => {
-      return { data: { signedUrl: 'https://sukoon.ai/mock-document-preview' }, error: null };
+    createSignedUrl: async (_path: string, _expiresIn: number) => {
+      return { data: null, error: { message: 'Object not found' } };
     }
   })
 };

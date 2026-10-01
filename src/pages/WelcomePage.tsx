@@ -1,20 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserSettings, Gender, Profession, TonePreference, Language } from '../types';
-import { loginUser, registerUser, signInAnonymously, registerTherapist } from '../services/authService';
+import { loginUser, loginDemo, registerUser, signInAnonymously, registerTherapist } from '../services/authService';
 import { supabase } from '../services/supabaseClient';
 import { FirebaseGoogleAuthButton } from '../lib/FirebaseGoogleAuthButton';
 import { resetPassword } from '../lib/firebase';
 import { getTeamMembers } from '../services/dataService';
 import { TermsPage } from './TermsPage';
 import { CHECKIN_POOLS } from '../constants';
+import { CLIENT_DEMO_UPGRADE_KEY } from '../lib/clientDemo';
 import { saveCheckInEvent } from '../services/dataService';
+
+type ViewState = 'landing' | 'login' | 'signup' | 'terms' | 'checkIn' | 'content' | 'therapist-landing' | 'therapist-signup' | 'therapist-pending' | 'forgot-password' | 'meet-the-team';
 
 interface WelcomePageProps {
   onComplete: (userSettings: UserSettings) => void;
+  initialView?: ViewState;
 }
-
-type ViewState = 'landing' | 'login' | 'signup' | 'terms' | 'checkIn' | 'content' | 'therapist-landing' | 'therapist-signup' | 'therapist-pending' | 'forgot-password' | 'meet-the-team';
 
 const LANGUAGES: Language[] = ['English', 'Urdu', 'Roman Urdu', 'Sindhi', 'Pashto', 'Siraiki', 'Arabic', 'Spanish'];
 const TONES: TonePreference[] = ['Cute', 'Mature', 'Friendly', 'Soft', 'Calm', 'Direct'];
@@ -69,13 +71,18 @@ const CONTENT_PAGES: Record<string, { title: string, content: string }> = {
     '/contact': { title: 'Contact Us', content: 'Reach out to support@sukoon.ai for inquiries.' }
 };
 
-export const WelcomePage: React.FC<WelcomePageProps> = ({ onComplete }) => {
-  const [view, setView] = useState<ViewState>('landing');
+export const WelcomePage: React.FC<WelcomePageProps> = ({ onComplete, initialView }) => {
+  const [demoUpgradeNotice] = useState(() => {
+      const requested = sessionStorage.getItem(CLIENT_DEMO_UPGRADE_KEY) === '1';
+      if (requested) sessionStorage.removeItem(CLIENT_DEMO_UPGRADE_KEY);
+      return requested;
+  });
+  const [view, setView] = useState<ViewState>(initialView || (demoUpgradeNotice ? 'signup' : 'landing'));
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [contentPath, setContentPath] = useState(''); // For simulated router
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const [applicationId, setApplicationId] = useState('');
+  const [applicationId, setApplicationId] = useState(() => localStorage.getItem('sukoon_therapist_application_id') || '');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Login State
@@ -156,6 +163,28 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onComplete }) => {
           setLoginData({ email: 'admin@sukoon.ai', password: 'password123' });
       }
       setError('');
+  };
+
+  const handleDemoLogin = async (role: 'client' | 'therapist' | 'admin') => {
+      try {
+          setError('');
+          setIsLoading(true);
+          const result = await loginDemo(role);
+          setIsLoading(false);
+          if (result.user) {
+              if (result.user.accountStatus === 'pending' || (result.user.role === 'therapist' && result.user.accountStatus !== 'active')) {
+                  setApplicationId('RETURNING-USER');
+                  setView('therapist-pending');
+              } else {
+                  onComplete(result.user);
+              }
+          } else {
+              setError(result.error || "Demo access is unavailable right now.");
+          }
+      } catch (e: any) {
+          setIsLoading(false);
+          setError(e.message || "Demo access is unavailable right now.");
+      }
   };
 
   const handleLogin = async () => {
@@ -1244,6 +1273,14 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onComplete }) => {
                 )}
 
                 <button onClick={handleLogin} disabled={isLoading} className="w-full mt-8 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-70">{isLoading ? 'Logging in...' : 'Log In'}</button>
+                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3.5">
+                    <p className="text-center text-xs font-bold tracking-wide text-slate-800 mb-3">Quick Demo Access</p>
+                    <div className="grid grid-cols-3 gap-2">
+                        <button type="button" onClick={() => handleDemoLogin('client')} disabled={isLoading} className="py-3 px-1.5 bg-white border border-slate-200 text-slate-800 rounded-xl text-[11px] font-bold leading-tight whitespace-nowrap hover:bg-slate-100 transition-all disabled:opacity-70">Client Demo</button>
+                        <button type="button" onClick={() => handleDemoLogin('therapist')} disabled={isLoading} className="py-3 px-1.5 bg-white border border-slate-200 text-slate-800 rounded-xl text-[11px] font-bold leading-tight whitespace-nowrap hover:bg-slate-100 transition-all disabled:opacity-70">Therapist Demo</button>
+                        <button type="button" onClick={() => handleDemoLogin('admin')} disabled={isLoading} className="py-3 px-1.5 bg-white border border-slate-200 text-slate-800 rounded-xl text-[11px] font-bold leading-tight hover:bg-slate-100 transition-all disabled:opacity-70">Admin Demo</button>
+                    </div>
+                </div>
                 <div className="mt-6 text-center text-sm">
                     <p className="text-slate-500">No account? <button onClick={() => setView('signup')} className="text-teal-600 font-bold hover:underline">Create One</button></p>
                     <button onClick={() => setView('landing')} className="mt-4 text-slate-400 hover:text-slate-600">Back to Home</button>
@@ -1274,6 +1311,11 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onComplete }) => {
                 </div>
                 <div className="text-center mb-8">
                     <h2 className="text-3xl font-bold text-slate-900 mb-2">Create your account</h2>
+                    {demoUpgradeNotice && (
+                        <p className="mt-3 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                            Create a real account to upgrade. The Client Demo account cannot be upgraded.
+                        </p>
+                    )}
                 </div>
                 <p className="text-slate-500 mb-8 text-center font-medium">Begin your healing journey. Your space is always private.</p>
                 {error && <div className="mb-6 p-3 bg-rose-50 text-rose-600 text-sm rounded-xl text-center">{error}</div>}

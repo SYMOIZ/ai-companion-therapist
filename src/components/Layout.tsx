@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserSettings, Broadcast } from '../types';
 import { getActiveBroadcasts, getUserNotifications, markNotificationRead, markAllNotificationsRead, getActiveUserRiskAlerts } from '../services/dataService';
+import { isClientDemoAccount, redirectClientDemoToSignup, CLIENT_DEMO_USER_ID } from '../lib/clientDemo';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiskAlert } from '../types';
 import { 
@@ -46,6 +47,11 @@ const NotificationMenu = ({ role, userId, onClose, onNavigate, onMarkReadSync }:
 
     useEffect(() => {
         let isMounted = true;
+        if (userId === CLIENT_DEMO_USER_ID) {
+          setNotifications([]);
+          setLoading(false);
+          return;
+        }
         getUserNotifications().then(async data => {
             if (isMounted) {
                 // If there are unread loaded, we mark them all as read.
@@ -192,6 +198,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, setti
 
       // 2. Fetch Notification Count
       const updateUnread = () => {
+          if (isClientDemoAccount(settings)) {
+            setUnreadCount(0);
+            return;
+          }
           getUserNotifications().then(notifs => {
               const unread = notifs.filter(n => !n.isRead).length;
               setUnreadCount(unread);
@@ -379,7 +389,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, setti
                 icon={<Heart size={20} />}
                 label="Tickets & Support" 
                 isActive={activeTab === 'support'} 
-                onClick={() => handleTabChange('support')} 
+                onClick={() => { if (redirectClientDemoToSignup(settings)) return; handleTabChange('support'); }} 
             />
             <NavItem 
                 icon={<Bell size={20} />}
@@ -422,7 +432,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, setti
                   Unlock unlimited AI chats, priority therapist matches, and all premium features.
                 </p>
                 <button 
-                  onClick={() => handleTabChange('settings')}
+                  onClick={() => { if (redirectClientDemoToSignup(settings)) return; handleTabChange('settings'); }}
                   className="w-full py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-bold transition-all shadow-sm"
                 >
                   View Plans

@@ -3,6 +3,7 @@ import { UserSettings, TherapistStyle, PersonalityMode, Gender, Profession, Tone
 import { deleteTodayData, deleteAllData, deleteDateData } from '../services/ragService';
 import { checkConnection } from '../services/dataService';
 import { ShieldCheck, User, Bell, Lock, Globe, Database, Trash2 } from 'lucide-react';
+import { isClientDemoAccount } from '../lib/clientDemo';
 
 interface SettingsPageProps {
   settings: UserSettings;
@@ -49,6 +50,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdateSe
                   <User size={18} />
                </div>
                <h2 className="text-lg font-semibold">Profile Information</h2>
+               {isClientDemoAccount(settings) && <p className="text-xs text-amber-700 font-semibold">Demo Account. Preferences stay in this session only.</p>}
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -167,6 +169,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdateSe
                <h2 className="text-lg font-semibold">Security</h2>
             </div>
             <div className="p-6">
+                {!isClientDemoAccount(settings) && (
                 <button 
                     onClick={() => {
                         if(confirm("Are you sure? This will delete ALL journals, memories, and sessions for your account. This action cannot be undone.")) {
@@ -179,6 +182,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdateSe
                     <Trash2 size={16} />
                     Delete Account & All Data
                 </button>
+                )}
             </div>
           </section>
 

@@ -9,7 +9,8 @@ import {
     getTransactions, 
     requestPayout, 
     getReviews, 
-    getTherapistSchedule, 
+    getTherapistSchedule,
+    getSessionBookings, 
     addCalendarSlot, 
     deleteCalendarSlot, 
     updateMeetingLink, 
@@ -98,6 +99,7 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({ view = '
 
     // Calendar State
     const [schedule, setSchedule] = useState<CalendarSlot[]>([]);
+    const [sessionBookings, setSessionBookings] = useState<any[]>([]);
     const [weekOffset, setWeekOffset] = useState(0);
     const [showAddSlotModal, setShowAddSlotModal] = useState(false);
     const [newSlotDate, setNewSlotDate] = useState(''); // ISO Date string for the day being added to
@@ -130,13 +132,14 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({ view = '
             setIsLoading(true);
             try {
                 // Parallel fetching for better performance
-                const [patientsData, previousPatientsData, notesData, txsData, reviewsData, scheduleData, boostsData, subsData, assignedAlertsData] = await Promise.all([
+                const [patientsData, previousPatientsData, notesData, txsData, reviewsData, scheduleData, bookingData, boostsData, subsData, assignedAlertsData] = await Promise.all([
                     getTherapistPatients(CURRENT_THERAPIST_ID),
                     getTherapistPreviousPatients(CURRENT_THERAPIST_ID),
                     getTherapyNotes(),
                     getTransactions(),
                     getReviews(CURRENT_THERAPIST_ID),
                     getTherapistSchedule(CURRENT_THERAPIST_ID),
+                    getSessionBookings({ therapistId: CURRENT_THERAPIST_ID }),
                     getTherapistBoosts(CURRENT_THERAPIST_ID),
                     getTherapistSubscriptions(CURRENT_THERAPIST_ID),
                     getTherapistAssignedAlerts(CURRENT_THERAPIST_ID)
@@ -149,6 +152,7 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({ view = '
                 calculateBalances(txsData);
                 setReviews(reviewsData);
                 setSchedule(scheduleData);
+                setSessionBookings(bookingData || []);
                 setTherapistBoosts(boostsData || []);
                 setTherapistSubs(subsData || []);
                 setAssignedAlerts(assignedAlertsData);
@@ -739,6 +743,20 @@ export const TherapistDashboard: React.FC<TherapistDashboardProps> = ({ view = '
                                     <button onClick={() => setWeekOffset(weekOffset + 1)} className="px-4 py-2 hover:bg-slate-50 rounded-lg text-slate-600 font-bold">Next →</button>
                                 </div>
                             </div>
+
+                            {sessionBookings.length > 0 && (
+                                <div className="mb-6 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                                    <h2 className="text-sm font-bold text-slate-700 mb-3">Session requests</h2>
+                                    <div className="space-y-2">
+                                        {sessionBookings.map(booking => (
+                                            <div key={booking.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                                                <span className="font-bold text-slate-800">{booking.date} · {booking.timeSlot}</span>
+                                                <span className="text-slate-500">{booking.sessionType} · {booking.status}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-5 gap-4 mb-8">
                                 {getWeekDays(weekOffset).map((date, i) => {

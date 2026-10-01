@@ -1,3 +1,4 @@
+import secrets
 import uuid
 import time
 from fastapi import APIRouter, Depends, HTTPException, Header, status
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 def user_to_dict(user: User) -> dict:
     if not user:
         return {}
-    return {
+    payload = {
         "id": user.id,
         "email": user.email,
         "display_name": user.display_name,
@@ -42,6 +43,9 @@ def user_to_dict(user: User) -> dict:
         "created_at": user.created_at,
         "updated_at": user.updated_at
     }
+    if user.id == "client-demo-001" or (user.email or "").lower() == "demo.client@sukoon.ai":
+        payload["accountType"] = "client-demo"
+    return payload
 
 @router.post("/signup")
 async def signup(req: dict, db: Session = Depends(get_db)):
@@ -200,6 +204,183 @@ async def signin(req: dict, db: Session = Depends(get_db)):
         },
         "error": None
     }
+
+DEMO_ACCOUNTS = {
+    "client": {
+        "id": "client-demo-001",
+        "email": "demo.client@sukoon.ai",
+        "display_name": "Demo Account",
+        "role": "patient",
+        "is_admin": 0,
+        "age": 0,
+        "gender": "Other",
+        "region": "Demo",
+        "profession": "Client",
+        "tone_preference": "Calm",
+    },
+    "therapist": {
+        "id": "therapist-counsel-001",
+        "email": "counselor@sukoon.ai",
+        "display_name": "Dr. Sarah Connor",
+        "role": "therapist",
+        "is_admin": 0,
+        "age": 38,
+        "gender": "Female",
+        "region": "USA",
+        "profession": "Clinical Psychologist",
+        "tone_preference": "Soft",
+    },
+    "admin": {
+        "id": "admin-sys-001",
+        "email": "admin@sukoon.ai",
+        "display_name": "Sukoon Admin",
+        "role": "admin",
+        "is_admin": 1,
+        "age": 35,
+        "gender": "Other",
+        "region": "Global",
+        "profession": "Administrator",
+        "tone_preference": "Professional",
+    },
+}
+
+def ensure_demo_user(db: Session, spec: dict) -> User:
+    user = db.query(User).filter(User.email.ilike(spec["email"])).first()
+    now = time.strftime('%Y-%m-%dT%H:%M:%SZ')
+    if not user:
+        user = User(
+            id=spec["id"],
+            email=spec["email"],
+            display_name=spec["display_name"],
+            role=spec["role"],
+            account_status="active",
+            age=spec["age"],
+            gender=spec["gender"],
+            region=spec["region"],
+            profession=spec["profession"],
+            preferred_language="English",
+            tone_preference=spec["tone_preference"],
+            voice_enabled=0,
+            auto_play_audio=0,
+            memory_enabled=1,
+            therapist_style="gentle",
+            personality_mode="introvert",
+            dark_mode=0,
+            is_admin=spec["is_admin"],
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(user)
+        db.flush()
+        if not db.query(UserPassword).filter(UserPassword.user_id == user.id).first():
+            db.add(UserPassword(user_id=user.id, password=secrets.token_urlsafe(32)))
+    if spec["role"] == "therapist":
+        from ..models import TherapistProfile
+        profile = db.query(TherapistProfile).filter(TherapistProfile.user_id == user.id).first()
+        if not profile:
+            db.add(TherapistProfile(
+                user_id=user.id,
+                specialty="Anxiety, PTSD, and trauma recovery counselor.",
+                bio="I offer collaborative, non-judgmental professional sessions tailored to stress relief, mindfulness, and trauma containment.",
+                experience=12,
+                rating=4.9,
+                review_count=8,
+                is_crisis_certified=1,
+                license_number="L-9843-NYC",
+                approval_status="approved",
+                clinical_specializations='["Anxiety", "Trauma", "Mindfulness"]',
+            ))
+    db.commit()
+    db.refresh(user)
+    return user
+
+@router.post("/demo-login")
+async def demo_login(req: dict, db: Session = Depends(get_db)):
+    role_key = str(req.get("role") or "").strip().lower()
+    spec = DEMO_ACCOUNTS.get(role_key)
+    if not spec:
+        return {"data": None, "error": {"message": "Unknown demo role"}}
+
+    user = ensure_demo_user(db, spec)
+    if user.account_status == "suspended":
+        return {"data": None, "error": {"message": "This demo account is suspended"}}
+
+    token = generate_token(user.id)
+    u_dict = user_to_dict(user)
+    if role_key == "client":
+        u_dict["accountType"] = "client-demo"
+    return {
+        "data": {
+            "user": u_dict,
+            "session": {
+                "access_token": token,
+                "user": u_dict
+            }
+        },
+        "error": None
+    }
+
+CLIENT_DEMO_ID = "client-demo-001"
+CLIENT_DEMO_EMAIL = "demo.client@sukoon.ai"
+CLIENT_DEMO_CHAT_LIMIT = 10
+CLIENT_DEMO_USAGE_KEY = "client_demo_chat_usage"
+
+def _purge_client_demo_rows(db: Session, user_id: str):
+    from sqlalchemy import text
+    tables = [
+        "chat_messages",
+        "chat_sessions",
+        "journal_entries",
+        "user_memory",
+        "notifications",
+        "support_tickets",
+        "session_bookings",
+    ]
+    for table in tables:
+        try:
+            with db.begin_nested():
+                db.execute(text(f"DELETE FROM {table} WHERE user_id = :uid"), {"uid": user_id})
+        except Exception:
+            continue
+
+@router.post("/demo-client-usage")
+async def demo_client_usage(req: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.id != CLIENT_DEMO_ID and (current_user.email or "").lower() != CLIENT_DEMO_EMAIL:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    session_id = str(req.get("sessionId") or "").strip()
+    action = str(req.get("action") or "status")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="sessionId required")
+
+    import json
+    from ..models import SystemSetting
+    row = db.query(SystemSetting).filter(SystemSetting.key == CLIENT_DEMO_USAGE_KEY).first()
+    stored = {}
+    if row and row.value:
+        try:
+            stored = json.loads(row.value)
+        except Exception:
+            stored = {}
+    if stored.get("sessionId") != session_id:
+        stored = {"sessionId": session_id, "count": 0}
+        _purge_client_demo_rows(db, current_user.id)
+    count = int(stored.get("count") or 0)
+    allowed = count < CLIENT_DEMO_CHAT_LIMIT
+    if action == "consume":
+        if not allowed:
+            return {"allowed": False, "count": count, "limit": CLIENT_DEMO_CHAT_LIMIT}
+        count += 1
+        stored["count"] = count
+        allowed = True
+    payload = json.dumps({"sessionId": session_id, "count": count})
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if row:
+        row.value = payload
+        row.updated_at = now
+    else:
+        db.add(SystemSetting(key=CLIENT_DEMO_USAGE_KEY, value=payload, updated_at=now))
+    db.commit()
+    return {"allowed": allowed if action == "consume" else count < CLIENT_DEMO_CHAT_LIMIT, "count": count, "limit": CLIENT_DEMO_CHAT_LIMIT}
 
 @router.post("/signin_anonymous")
 async def signin_anonymous(db: Session = Depends(get_db)):

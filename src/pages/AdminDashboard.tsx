@@ -136,10 +136,10 @@ const TherapistsView = ({ therapists, applications, setApplications, onRefresh }
         }
     };
 
-    const handleReject = async (id: string) => {
+    const handleReject = async (id: string, reason?: string) => {
         const app = applications.find(a => a.id === id || a.userId === id) || therapists.find(t => t.id === id);
         if (app) {
-            await rejectTherapistApplication(app.id);
+            await rejectTherapistApplication(app.id, reason);
             setInspectingTherapist(null);
             onRefresh();
         }

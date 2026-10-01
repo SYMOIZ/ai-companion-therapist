@@ -880,7 +880,10 @@ async def db_select(req: dict):
         return {"data": None, "error": {"message": str(e)}}
 
 @app.post("/api/db/insert")
-async def db_insert(req: dict):
+async def db_insert(req: dict, authorization: str = Header(None)):
+    blocked_write = reject_client_demo_persistent_write(req.get("table"), authorization)
+    if blocked_write:
+        return blocked_write
     table = req.get("table")
     values = req.get("values") or {}
     
@@ -928,8 +931,100 @@ async def db_insert(req: dict):
             
     return {"data": inserted_rows, "error": None}
 
+CLIENT_DEMO_USER_ID = "client-demo-001"
+CLIENT_DEMO_EMAIL = "demo.client@sukoon.ai"
+ACCOUNT_TABLES = {"users", "user_passwords"}
+CLIENT_DEMO_PERSISTENT_TABLES = {
+    "chat_messages", "chat_sessions", "journal_entries", "user_memory",
+    "notifications", "support_tickets", "support_ticket_messages",
+    "session_bookings", "therapist_connections", "direct_messages",
+}
+
+def client_demo_actor_id(authorization: str = None):
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        return None
+    try:
+        from backend.auth import verify_token
+        user_id = verify_token(token)
+    except Exception:
+        return None
+    if not user_id:
+        return None
+    if user_id == CLIENT_DEMO_USER_ID:
+        return user_id
+    row = query_db("SELECT id, email FROM users WHERE id = ?", (user_id,), one=True)
+    if row and str(row.get("email") or "").strip().lower() == CLIENT_DEMO_EMAIL:
+        return row.get("id") or user_id
+    return None
+
+def client_demo_targets_other_account(payload, actor_id: str) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    target_id = str(payload.get("id") or payload.get("user_id") or "")
+    target_email = str(payload.get("email") or "").strip().lower()
+    if target_id and target_id != actor_id:
+        return True
+    if target_email and target_email != CLIENT_DEMO_EMAIL:
+        return True
+    return False
+
+def reject_client_demo_persistent_write(table: str, authorization: str):
+    if table not in CLIENT_DEMO_PERSISTENT_TABLES and table != "users":
+        return None
+    if not client_demo_actor_id(authorization):
+        return None
+    return {"data": None, "error": {"message": "Client Demo sessions cannot save permanent records."}}
+
+def reject_client_demo_account_change(table: str, authorization: str, filters=None, values=None):
+    actor_id = client_demo_actor_id(authorization)
+    if not actor_id:
+        return None
+    if table in ACCOUNT_TABLES:
+        blobs = []
+        if isinstance(values, list):
+            blobs.extend(values)
+        elif isinstance(values, dict):
+            blobs.append(values)
+        if isinstance(filters, list):
+            for item in filters:
+                if isinstance(item, dict):
+                    blobs.append({item.get("column"): item.get("value")})
+        if table == "users" and not blobs:
+            return {"data": None, "error": {"message": "Client Demo accounts cannot change user accounts."}}
+        for blob in blobs:
+            if client_demo_targets_other_account(blob, actor_id):
+                return {"data": None, "error": {"message": "Client Demo accounts cannot change another account."}}
+            if table == "user_passwords":
+                return {"data": None, "error": {"message": "Client Demo accounts cannot change user accounts."}}
+        if table == "users":
+            for blob in blobs:
+                column_id = str(blob.get("id") or blob.get("user_id") or "")
+                if column_id and column_id != actor_id:
+                    return {"data": None, "error": {"message": "Client Demo accounts cannot change another account."}}
+    if table in ACCOUNT_TABLES or table in {"chat_messages", "chat_sessions", "journal_entries", "user_memory"}:
+        if isinstance(filters, list):
+            for item in filters:
+                if not isinstance(item, dict):
+                    continue
+                column = str(item.get("column") or "")
+                value = str(item.get("value") or "")
+                if column in {"user_id", "id"} and value and value != actor_id and table in ACCOUNT_TABLES:
+                    return {"data": None, "error": {"message": "Client Demo accounts cannot delete another account."}}
+                if column == "user_id" and value and value != actor_id:
+                    return {"data": None, "error": {"message": "Client Demo accounts cannot delete another account's data."}}
+    return None
+
 @app.post("/api/db/update")
-async def db_update(req: dict):
+async def db_update(req: dict, authorization: str = Header(None)):
+    blocked_write = reject_client_demo_persistent_write(req.get("table"), authorization)
+    if blocked_write:
+        return blocked_write
+    blocked = reject_client_demo_account_change(req.get("table"), authorization, req.get("filters"), req.get("values"))
+    if blocked:
+        return blocked
     table = req.get("table")
     values = req.get("values", {}) or {}
     filters = req.get("filters", [])
@@ -974,7 +1069,13 @@ async def db_update(req: dict):
         return {"data": None, "error": {"message": str(e)}}
 
 @app.post("/api/db/upsert")
-async def db_upsert(req: dict):
+async def db_upsert(req: dict, authorization: str = Header(None)):
+    blocked_write = reject_client_demo_persistent_write(req.get("table"), authorization)
+    if blocked_write:
+        return blocked_write
+    blocked = reject_client_demo_account_change(req.get("table"), authorization, None, req.get("values"))
+    if blocked:
+        return blocked
     table = req.get("table")
     values = req.get("values") or {}
     
@@ -1047,9 +1148,20 @@ async def db_upsert(req: dict):
     return {"data": inserted_rows, "error": None}
 
 @app.post("/api/db/delete")
-async def db_delete(req: dict):
+async def db_delete(req: dict, authorization: str = Header(None)):
     table = req.get("table")
     filters = req.get("filters", [])
+    actor_id = client_demo_actor_id(authorization)
+    if actor_id and table in ACCOUNT_TABLES.union({"chat_messages", "chat_sessions", "journal_entries", "user_memory"}):
+        return {"data": None, "error": {"message": "Client Demo accounts cannot delete an account."}}
+    if actor_id:
+        for item in filters or []:
+            if not isinstance(item, dict):
+                continue
+            column = str(item.get("column") or "")
+            value = str(item.get("value") or "")
+            if column in {"user_id", "id", "email"} and value and value not in {actor_id, CLIENT_DEMO_EMAIL}:
+                return {"data": None, "error": {"message": "Client Demo accounts cannot delete another account."}}
     
     if not table or not re.match(r'^[a-zA-Z0-9_]+$', table):
         return {"data": None, "error": {"message": "Invalid table"}}

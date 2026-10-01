@@ -6,6 +6,7 @@ import {
   createNotification 
 } from '../services/dataService';
 import { Therapist, SessionBooking, UserSettings } from '../types';
+import { isClientDemoAccount, redirectClientDemoToSignup } from '../lib/clientDemo';
 import { 
   Sparkles, 
   Calendar, 
@@ -77,7 +78,7 @@ export const TherapistDirectory: React.FC<{onNavigate?: (tab: string) => void}> 
       const allTherapists = await getTherapists();
       setTherapists(allTherapists);
 
-      if (currentUser) {
+      if (currentUser && !isClientDemoAccount(currentUser)) {
         const bookings = await getSessionBookings({ clientId: currentUser.id });
         setSessionBookings(bookings || []);
         
@@ -183,6 +184,7 @@ export const TherapistDirectory: React.FC<{onNavigate?: (tab: string) => void}> 
   };
 
   const handleOpenBooking = (therapist: Therapist) => {
+    if (redirectClientDemoToSignup(currentUser)) return;
     setBookingTherapist(therapist);
     // Auto preset values
     setSessionType('video');
@@ -254,6 +256,13 @@ export const TherapistDirectory: React.FC<{onNavigate?: (tab: string) => void}> 
         'New Booking Payment Pending Verification',
         `Client ${currentUser.name} uploaded PKR ${feeAmount} payment receipt proof for a ${sessionType} session with Dr. ${bookingTherapist.name}.`,
         'system'
+      );
+
+      await createNotification(
+        bookingTherapist.id,
+        'New session request',
+        `${currentUser.name} requested a ${sessionType} session on ${bookingDate} at ${timeSlot}. Payment is under review.`,
+        'meeting'
       );
 
       // Notify Client

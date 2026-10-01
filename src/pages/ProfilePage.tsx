@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserSettings } from '../types';
+import { isClientDemoAccount, redirectClientDemoToSignup } from '../lib/clientDemo';
 
 interface ProfilePageProps {
   settings: UserSettings;
@@ -15,6 +16,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ settings, onNavigate }
   useEffect(() => {
     let isMounted = true;
     const fetchProfile = async () => {
+      if (isClientDemoAccount(settings)) {
+        if (isMounted) {
+          setProfileData({ badges: [], userContext: {} });
+          setSubscription(null);
+          setPurchaseHistory([]);
+          setIsLoading(false);
+        }
+        return;
+      }
       try {
         const token = localStorage.getItem('sukoon_auth_token');
         const headers = { 'Authorization': `Bearer ${token}` };
@@ -106,14 +116,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ settings, onNavigate }
              <div className="flex justify-between items-start">
                <div>
                  <div className="flex items-center gap-3">
-                   <h1 className="text-3xl font-bold text-slate-800 dark:text-white">{settings?.name || 'User'}</h1>
+                   <h1 className="text-3xl font-bold text-slate-800 dark:text-white">{isClientDemoAccount(settings) ? 'Demo Account' : (settings?.name || 'User')}</h1>
+                   {isClientDemoAccount(settings) && (
+                     <span className="px-2 py-1 bg-amber-100 text-amber-800 text-[10px] uppercase font-bold tracking-widest rounded-full border border-amber-200">
+                       Demo Account
+                     </span>
+                   )}
                    {subscription && subscription.status === 'Active' && (
                      <span className="px-2 py-1 bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300 text-[10px] uppercase font-bold tracking-widest rounded-full border border-teal-200">
                        ✨ Premium Client ✓
                      </span>
                    )}
                  </div>
-                 <p className="text-slate-500 dark:text-slate-400 font-medium">{settings?.email || u?.email}</p>
+                 <p className="text-slate-500 dark:text-slate-400 font-medium">{isClientDemoAccount(settings) ? 'demo.client@sukoon.ai' : (settings?.email || u?.email)}</p>
                  <div className="mt-4 flex gap-4 text-sm font-medium text-slate-600 dark:text-slate-300">
                    <div className="bg-slate-50 dark:bg-navy-900 px-3 py-1.5 rounded-lg border border-slate-100 dark:border-navy-700">Account Active</div>
                    <div className="bg-slate-50 dark:bg-navy-900 px-3 py-1.5 rounded-lg border border-slate-100 dark:border-navy-700 font-mono">ID: {settings.id.split('-')[0]}</div>
@@ -121,7 +136,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ settings, onNavigate }
                </div>
                <div>
                   {(!subscription || subscription.status !== 'Active') && onNavigate && (
-                    <button onClick={() => onNavigate('plans')} className="px-5 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 shadow-md text-white rounded-lg font-bold text-sm transition-all">
+                    <button onClick={() => { if (redirectClientDemoToSignup(settings)) return; onNavigate('plans'); }} className="px-5 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 shadow-md text-white rounded-lg font-bold text-sm transition-all">
                       Upgrade Plan
                     </button>
                   )}

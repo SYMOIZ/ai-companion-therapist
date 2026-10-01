@@ -173,13 +173,13 @@ export const generateTherapistResponse = async (
   }
 
   try {
-    let modelName = 'gemini-3.5-flash';
+    let modelName = 'gemini-2.5-flash';
     let config: any = {
         systemInstruction: systemInstruction,
     };
 
     if (userProfile.deepMode && !userProfile.isAdmin) {
-        modelName = 'gemini-3.5-flash'; // Unified flash model in proxy configuration
+        modelName = 'gemini-2.5-flash'; // Unified flash model in proxy configuration
     } else {
         config.tools = tools.length > 0 ? tools : undefined;
         config.toolConfig = tools.length > 0 ? toolConfig : undefined;

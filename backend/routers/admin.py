@@ -6,13 +6,32 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import User, TeamMember, Broadcast, SupportTicket, RiskAlert, SystemSetting, TherapistApplication, TherapistProfile, Notification
+from ..models import User, TeamMember, Broadcast, SupportTicket, RiskAlert, SystemSetting, TherapistApplication, TherapistProfile, Notification, EmailEvent
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
+def _require_admin(current_user: User):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+def _record_pending_email(db: Session, to_email: str, subject: str, body: str, event_type: str):
+    EmailEvent.__table__.create(bind=db.get_bind(), checkfirst=True)
+    event = EmailEvent(
+        id=f"email-{uuid.uuid4().hex[:12]}",
+        to_email=to_email,
+        subject=subject,
+        body=body,
+        event_type=event_type,
+        status="pending",
+        created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    db.add(event)
+    return event
+
 @router.post("/approve-therapist")
-async def approve_therapist(req: dict, db: Session = Depends(get_db)):
+async def approve_therapist(req: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_admin(current_user)
     app_id = req.get("appId")
     app = db.query(TherapistApplication).filter(TherapistApplication.id == app_id).first()
     if not app:
@@ -25,6 +44,15 @@ async def approve_therapist(req: dict, db: Session = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         user.account_status = "active"
+        meta = user.metadata if isinstance(user.metadata, dict) else {}
+        if isinstance(user.metadata, str):
+            try:
+                meta = json.loads(user.metadata)
+            except Exception:
+                meta = {}
+        meta = dict(meta or {})
+        meta["applicationStatus"] = "approved"
+        user.metadata = meta
         profile = db.query(TherapistProfile).filter(TherapistProfile.user_id == app.user_id).first()
         if not profile:
              profile = TherapistProfile(user_id=app.user_id, specialty=app.specialization, experience=app.years_experience, license_number=app.license_number, is_crisis_certified=0)
@@ -35,6 +63,13 @@ async def approve_therapist(req: dict, db: Session = Depends(get_db)):
              profile.license_number = app.license_number
         notif = Notification(id=f"notif-{uuid.uuid4().hex[:12]}", user_id=app.user_id, title='Congratulations! Application Approved 🎉', message='Welcome to Sukoon! Your therapist profile is now active.', type='system', created_at=time.strftime('%Y-%m-%dT%H:%M:%SZ'))
         db.add(notif)
+        _record_pending_email(
+            db,
+            user.email,
+            "Your Sukoon therapist application was approved",
+            "Your therapist application has been approved. Your account is now active. This message is queued for delivery and has not been sent.",
+            "therapist_application_approved",
+        )
         db.commit()
         return {"status": "success"}
     except Exception as e:
@@ -43,12 +78,46 @@ async def approve_therapist(req: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/reject-therapist")
-async def reject_therapist(req: dict, db: Session = Depends(get_db)):
+async def reject_therapist(req: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_admin(current_user)
     app_id = req.get("appId")
+    reason = (req.get("reason") or "").strip()
     app = db.query(TherapistApplication).filter(TherapistApplication.id == app_id).first()
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
     app.status = "rejected"
+    user = db.query(User).filter(User.id == app.user_id).first() if app.user_id else None
+    if user:
+        user.account_status = "rejected"
+        meta = user.metadata if isinstance(user.metadata, dict) else {}
+        if isinstance(user.metadata, str):
+            try:
+                meta = json.loads(user.metadata)
+            except Exception:
+                meta = {}
+        meta = dict(meta or {})
+        meta["applicationStatus"] = "rejected"
+        user.metadata = meta
+    message = "Your therapist application was not approved."
+    if reason:
+        message = f"{message} Reason: {reason}"
+    if app.user_id:
+        db.add(Notification(
+            id=f"notif-{uuid.uuid4().hex[:12]}",
+            user_id=app.user_id,
+            title="Application not approved",
+            message=message,
+            type="system",
+            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        ))
+    if app.email:
+        _record_pending_email(
+            db,
+            app.email,
+            "Your Sukoon therapist application was not approved",
+            message + " This message is queued for delivery and has not been sent.",
+            "therapist_application_rejected",
+        )
     db.commit()
     return {"status": "success"}
 

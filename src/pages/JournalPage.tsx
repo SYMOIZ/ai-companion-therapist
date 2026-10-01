@@ -5,6 +5,7 @@ import { getSessions, getJournals, appendToJournalCache, removeFromJournalCache 
 import { saveJournalEntry, deleteJournalEntry } from '../services/dataService';
 import { aiMemoryService } from '../services/aiMemoryService';
 import { Trash2 } from 'lucide-react';
+import { isClientDemoAccount, readDemoJournal, writeDemoJournal } from '../lib/clientDemo';
 
 interface JournalPageProps {
     userId: string;
@@ -19,6 +20,11 @@ export const JournalPage: React.FC<JournalPageProps> = ({ userId }) => {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (isClientDemoAccount({ id: userId })) {
+        setEntries(readDemoJournal());
+        setSessions([]);
+        return;
+      }
       const fetchedJournals = await getJournals(userId);
       setEntries(fetchedJournals);
       const fetchedSessions = await getSessions(userId);
@@ -67,6 +73,11 @@ export const JournalPage: React.FC<JournalPageProps> = ({ userId }) => {
     // 1. Save locally (UI update)
     const updated = [entry, ...entries];
     setEntries(updated);
+    if (isClientDemoAccount({ id: userId })) {
+      writeDemoJournal(updated);
+      setNewEntry('');
+      return;
+    }
     appendToJournalCache(userId, entry);
     
     // 2. INGESTION PIPELINE: DB Save
@@ -82,6 +93,12 @@ export const JournalPage: React.FC<JournalPageProps> = ({ userId }) => {
   };
 
   const handleDeleteEntry = async (entryId: string) => {
+    if (isClientDemoAccount({ id: userId })) {
+      const updated = entries.filter(e => e.id !== entryId);
+      setEntries(updated);
+      writeDemoJournal(updated);
+      return;
+    }
     if (confirm("Are you sure you want to delete this journal entry? This action is permanent and will remove it from the database.")) {
         const success = await deleteJournalEntry(entryId);
         if (success) {

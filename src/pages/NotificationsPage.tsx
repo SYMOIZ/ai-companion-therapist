@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { getUserNotifications, markAllNotificationsRead } from '../services/dataService';
 import { Notification } from '../types';
+import { CLIENT_DEMO_USER_ID } from '../lib/clientDemo';
 
 export const NotificationsPage: React.FC<{userId?: string, role?: string, onNavigate?: (t: string) => void}> = ({ userId, role, onNavigate }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -12,6 +13,11 @@ export const NotificationsPage: React.FC<{userId?: string, role?: string, onNavi
     }, [userId]);
 
     const load = () => {
+        if (userId === CLIENT_DEMO_USER_ID) {
+            setNotifications([]);
+            setLoading(false);
+            return;
+        }
         getUserNotifications().then(async data => {
             const hasUnread = data.some(n => !n.isRead);
             setNotifications(data.map(n => ({...n, isRead: true})));
