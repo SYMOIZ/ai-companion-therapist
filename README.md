@@ -143,7 +143,7 @@ Step-by-step notes and the earlier account inventory are in `hackathon-proof/`.
 
 Captured in the browser from [https://www.sukoon.tech](https://www.sukoon.tech) on 2 October 2026. Personal emails and the admin risk-flag text were blurred. The booking scheduler was not captured.
 
-![Landing page](docs/screenshots/01-landing-page.png)
+![Landing page](hackathon-proof/screenshots/19-live-aws-proof.png)
 
 ![Login and Quick Demo Access](docs/screenshots/02-login-page.png)
 
