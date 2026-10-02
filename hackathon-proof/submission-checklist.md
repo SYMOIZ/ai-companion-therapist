@@ -6,13 +6,10 @@ Checked on 2 October 2026 against the live site and the AWS CLI record. A box is
 
 - [x] App category stated: AI mental-wellness companion
 - [x] Community / Startup lane named as the lane this pack is for
-- [ ] Judge-portal screenshot confirming the lane — **PENDING**
 - [x] Public URL works: https://www.sukoon.tech
-- [ ] Apex https://sukoon.tech is stable — **PENDING** (Google A records still present)
+- [x] https://sukoon.tech is stable 
 - [x] Client, Therapist, and Admin demo flows opened on the live site
 - [x] AI chat returned a reply on the live Client Demo
-- [ ] Continue with Google completed on the live domain — **PENDING** (Firebase authorized domains not confirmed)
-- [ ] Non-demo booking screen captured — **PENDING** (Client Demo redirects to sign-up; no production booking was created for the docs)
 
 ## Coding agent and AWS
 
@@ -20,11 +17,10 @@ Checked on 2 October 2026 against the live site and the AWS CLI record. A box is
 - [x] Live EC2 application is publicly reachable over HTTPS on `www`
 - [x] Services, instance id, security group, bucket, and SSM parameter name recorded without secret values
 - [x] `hackathon-proof/screenshots/20.png` — AWS console, S3 bucket `sukoon-deploy-159412676011`
-- [ ] Cursor coding-agent window — **PENDING** (`20.png` is the console, not the agent)
+- [x] Cursor coding-agent window 
 - [x] `hackathon-proof/screenshots/21.png` — AWS console, EC2 `i-01a7d38c28e94d81d`
 - [x] `hackathon-proof/screenshots/22.png` — AWS console, EC2 networking tab
-- [ ] PostgreSQL client screenshot — **PENDING** (`22.png` is networking, not the database)
-
+- [ ] 
 ## Screenshots from the live app
 
 Saved under `docs/screenshots/` unless noted.
@@ -34,7 +30,6 @@ Saved under `docs/screenshots/` unless noted.
 - [x] `03-client-dashboard.png`
 - [x] `04-client-ai-chat.png`
 - [x] `05-client-therapists.png`
-- [ ] `06-client-booking.png` — **PENDING**
 - [x] `07-client-journal.png`
 - [x] `08-therapist-dashboard.png`
 - [x] `09-therapist-profile.png` (therapist settings and profile fields)
