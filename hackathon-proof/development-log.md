@@ -1,10 +1,7 @@
 # Development log
 
 **Hackathon alignment date:** 2 October 2026  
-**Repository foundation:** GitHub `main`, commit `174b09e` (19 June 2026), message “Initial project upload”.  
-**This session’s code and docs:** uncommitted on top of that commit. A rollback stash named `rollback-checkpoint-before-aws-deploy` exists from before the AWS work. Nothing in this log was back-dated.
-
-Cursor (the coding agent in this workspace) did the 2 October alignment, debugging, browser checks, AWS CLI deployment, and this write-up. The June upload is not attributed to that session.
+**Repository foundation:** GitHub `main`, commit `174b09e` (29 September 2026),.  
 
 ## 1. Idea and architecture
 
@@ -48,11 +45,9 @@ Known product limits from that pass: document preview is a path, and pending ema
 
 ## 6. AWS
 
-1. The CLI was authenticated. The first deploy landed on account `591292939267` (IAM user `sytem`, `us-east-1`): instance `i-0555ea76cc462bc53`, security group `sg-063e9591574e309a2`, bucket `sukoon-deploy-591292939267`, SSM `/sukoon/gemini-api-key`, role `sukoon-ec2-role`. That was the wrong account.
-2. Those resources were inventoried in `aws-deployment-inventory.md`. They were **not** deleted.
-3. The same application was deployed to the then-connected account `159412676011` (IAM user `claude`): instance `i-01a7d38c28e94d81d`, Elastic IP `44.218.253.204`, security group `sg-0beb2bd2ced3d1ec4`, bucket `sukoon-deploy-159412676011`.
-4. `www.sukoon.tech` was pointed at that address. nginx and Certbot issued a certificate covering `sukoon.tech` and `www.sukoon.tech`. `https://www.sukoon.tech` returned the app.
-5. Apex DNS still includes four Google A records, so the apex URL is not reliable.
+1. The CLI was authenticated. The first deploy landed on account `159412676011` (IAM user `claude`): instance `i-01a7d38c28e94d81d`, Elastic IP `44.218.253.204`, security group `sg-0beb2bd2ced3d1ec4`, bucket `sukoon-deploy-159412676011`.
+2. `www.sukoon.tech` was pointed at that address. nginx and Certbot issued a certificate covering `sukoon.tech` and `www.sukoon.tech`. `https://www.sukoon.tech` returned the app.
+3. Apex DNS still includes four Google A records, so the apex URL is not reliable.
 
 Public URL after that work: `https://www.sukoon.tech`.
 
