@@ -1,0 +1,131 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sukoon AI Therapist Companion</title>
+    <meta name="description" content="Sukoon AI is your personal AI therapist companion, offering private, calming emotional support, mood-based reflections, CBT-inspired guidance, and 24/7 availability. Start your wellbeing journey today." />
+    <meta name="keywords" content="AI therapist, emotional support AI, mental health companion, Sukoon AI, CBT AI, mood therapy chatbot, wellness AI assistant, digital mental health tool" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Find Calm with Sukoon AI Therapist Companion" />
+    <meta property="og:description" content="A safe, soothing AI companion designed to help you reflect, heal, and grow anytime." />
+    
+    <script>
+      (function() {
+        // 1. Global & Process Polyfill
+        window.global = window;
+        window.process = window.process || { env: {} };
+        window.process.env = window.process.env || {};
+        window.process.env.NODE_ENV = window.process.env.NODE_ENV || 'production';
+        if (!window.process.env.GEMINI_API_KEY) window.process.env.GEMINI_API_KEY = ''; 
+
+        // 2. Crypto Polyfill
+        if (!window.crypto) {
+          window.crypto = {};
+        }
+
+        // 3. getRandomValues Polyfill (Critical for UUIDs)
+        if (!window.crypto.getRandomValues) {
+          window.crypto.getRandomValues = function(array) {
+            for (var i = 0; i < array.length; i++) {
+              array[i] = Math.floor(Math.random() * 256);
+            }
+            return array;
+          };
+        }
+
+        // 4. randomUUID Polyfill (RFC4122 Compliant)
+        if (!window.crypto.randomUUID) {
+          window.crypto.randomUUID = function() {
+            return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, function(c) {
+              var r = window.crypto.getRandomValues(new Uint8Array(1))[0];
+              return (c ^ r & 15 >> c / 4).toString(16);
+            });
+          };
+        }
+      })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Quicksand', 'Inter', 'sans-serif'],
+              body: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              lavender: {
+                50: '#f5f3ff',
+                100: '#ede9fe',
+                200: '#ddd6fe',
+                300: '#c4b5fd',
+                400: '#a78bfa', // Primary Brand
+                500: '#8b5cf6',
+                600: '#7c3aed',
+                900: '#4c1d95',
+              },
+              teal: {
+                50: '#f0fdfa',
+                100: '#ccfbf1',
+                400: '#2dd4bf', // Calm Teal
+                500: '#14b8a6',
+                600: '#0d9488',
+              },
+              beige: {
+                50: '#fffdf7', // Light App Bg
+                100: '#fcfbf4',
+                200: '#f2f0e4',
+              },
+              navy: {
+                700: '#1e1e2e',
+                800: '#151520', // Surface
+                900: '#0c0c14', // Main Bg
+                950: '#07070a', // Sidebar
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      
+      /* Professional Dark Mode Typography */
+      .dark {
+        color-scheme: dark;
+      }
+      .dark body {
+        letter-spacing: -0.01em;
+        line-height: 1.6;
+      }
+      .dark h1, .dark h2, .dark h3 {
+        letter-spacing: -0.02em;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.90.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-beige-50 text-slate-800 dark:bg-navy-900 dark:text-slate-300 transition-colors duration-300">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
