@@ -7,7 +7,6 @@ import {
 } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDx9iq5N49QGdBOX63YCT6l2ZHsTAoCpt8",
   authDomain: "sukoon-e8df7.firebaseapp.com",
   projectId: "sukoon-e8df7",
   storageBucket: "sukoon-e8df7.firebasestorage.app",
